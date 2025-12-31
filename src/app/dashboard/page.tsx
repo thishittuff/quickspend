@@ -7,8 +7,8 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell
 } from 'recharts';
-import { format, subMonths } from 'date-fns';
-import { ArrowLeft, Calendar, DollarSign, TrendingUp, WifiOff } from 'lucide-react'; // Added WifiOff import just in case, though not strictly used in this view usually
+import { format, subMonths, parseISO } from 'date-fns';
+import { ArrowLeft, Calendar, DollarSign, TrendingUp } from 'lucide-react';
 
 // Dark Mode Colors for Charts
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1'];
@@ -18,6 +18,7 @@ type Expense = {
   amount: number;
   category: string;
   created_at: string;
+  note?: string;
 };
 
 export default function Dashboard() {
@@ -35,7 +36,7 @@ export default function Dashboard() {
     const { data, error } = await supabase
       .from('expenses')
       .select('*')
-      .order('created_at', { ascending: true }); // Order by date for trend calc
+      .order('created_at', { ascending: true }); // Keep ascending for charts
 
     if (error) console.error('Error fetching:', error);
     else setExpenses(data || []);
@@ -44,24 +45,28 @@ export default function Dashboard() {
 
   // --- DATA PROCESSING LOGIC ---
 
-  // 1. Filter data for the SELECTED Month
+  // 1. Recent Transactions (Last 3)
+  // We create a copy [...expenses] before reversing to avoid mutating the original array
+  const recentExpenses = [...expenses].reverse().slice(0, 3);
+
+  // 2. Filter data for the SELECTED Month
   const currentMonthExpenses = expenses.filter(exp => 
     exp.created_at.startsWith(selectedMonth)
   );
 
-  // 2. Calculate Summary Cards
+  // 3. Calculate Summary Cards
   const totalSpend = currentMonthExpenses.reduce((sum, item) => sum + item.amount, 0);
 
-  // CHANGED LOGIC: Count unique days where money was actually spent
+  // Count unique days where money was actually spent
   const uniqueDaysSpent = new Set(
-    currentMonthExpenses.map(item => item.created_at.split('T')[0]) // Extract just the YYYY-MM-DD part
+    currentMonthExpenses.map(item => item.created_at.split('T')[0]) 
   ).size;
 
   const avgDailySpend = uniqueDaysSpent > 0 
     ? (totalSpend / uniqueDaysSpent) 
     : 0;
 
-  // 3. Prepare Pie Chart Data (Category Wise)
+  // 4. Prepare Pie Chart Data (Category Wise)
   const categoryStats: Record<string, number> = {};
   currentMonthExpenses.forEach(exp => {
     categoryStats[exp.category] = (categoryStats[exp.category] || 0) + exp.amount;
@@ -69,11 +74,11 @@ export default function Dashboard() {
   
   const pieData = Object.keys(categoryStats)
     .map(cat => ({ name: cat, value: categoryStats[cat] }))
-    .sort((a, b) => b.value - a.value); // Sort highest spend first
+    .sort((a, b) => b.value - a.value); 
 
   const top3Categories = pieData.slice(0, 3);
 
-  // 4. Prepare Trend Data (Last 6 Months)
+  // 5. Prepare Trend Data (Last 6 Months)
   const getTrendData = () => {
     const data = [];
     for (let i = 5; i >= 0; i--) {
@@ -105,7 +110,7 @@ export default function Dashboard() {
         <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">
           Insights
         </h1>
-        <div className="w-10" /> {/* Spacer for centering */}
+        <div className="w-10" />
       </div>
 
       {/* Month Filter */}
@@ -134,7 +139,6 @@ export default function Dashboard() {
           <div className="flex items-center gap-2 text-slate-400 text-xs font-medium uppercase mb-2">
             <TrendingUp size={14} /> Active Daily Avg
           </div>
-          {/* Displaying uniqueDaysSpent in tooltip or subtitle could be helpful context, but sticking to design */}
           <div className="text-2xl font-bold text-emerald-400">₹{Math.round(avgDailySpend).toLocaleString()}</div>
           <div className="text-[10px] text-slate-500 mt-1">
              (Based on {uniqueDaysSpent} spending days)
@@ -142,7 +146,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Charts Grid */}
+      {/* Charts & Lists Grid */}
       <div className="flex flex-col gap-6">
         
         {/* Category Breakdown (Pie) */}
@@ -173,7 +177,7 @@ export default function Dashboard() {
             </ResponsiveContainer>
           </div>
           
-          {/* Custom Legend / Top 3 List */}
+          {/* Top 3 List */}
           <div className="mt-4 space-y-3">
             {top3Categories.map((entry, index) => (
               <div key={entry.name} className="flex items-center justify-between p-2 rounded-lg bg-slate-950/50">
@@ -204,6 +208,39 @@ export default function Dashboard() {
             </ResponsiveContainer>
           </div>
         </div>
+
+        {/* NEW: Recent Transactions Table */}
+        <div className="bg-slate-900 p-5 rounded-3xl border border-slate-800 shadow-lg">
+          <h2 className="text-lg font-semibold mb-4 text-slate-200">Last 3 Payments</h2>
+          <div className="space-y-0">
+            {/* Table Header */}
+            <div className="grid grid-cols-3 text-xs font-medium text-slate-500 uppercase tracking-wider mb-2 px-2">
+              <div className="text-left">Category</div>
+              <div className="text-center">Time</div>
+              <div className="text-right">Amount</div>
+            </div>
+            
+            {/* Table Rows */}
+            {recentExpenses.length > 0 ? (
+              recentExpenses.map((exp) => (
+                <div key={exp.id} className="grid grid-cols-3 items-center py-3 border-b border-slate-800 last:border-0 px-2 hover:bg-slate-800/50 transition rounded-lg">
+                  <div className="text-sm text-slate-200 font-medium truncate pr-2">
+                    {exp.category}
+                  </div>
+                  <div className="text-xs text-slate-400 text-center">
+                    {format(parseISO(exp.created_at), 'd MMM, h:mm a')}
+                  </div>
+                  <div className="text-sm font-bold text-emerald-400 text-right">
+                    ₹{exp.amount.toLocaleString()}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center text-slate-500 py-4 text-sm">No expenses yet</div>
+            )}
+          </div>
+        </div>
+
       </div>
     </main>
   );
