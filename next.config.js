@@ -11,13 +11,10 @@ const withPWA = require("@ducanh2912/next-pwa").default({
 });
 
 const nextConfig = {
-  // CRITICAL: Disabling source maps saves huge amounts of memory
+  // Disabling source maps is CRITICAL for Vercel memory limits
   productionBrowserSourceMaps: false,
   
-  // OPTIONAL: Ignore eslint/type errors to prevent build failures on small warnings
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
+  // We removed the 'eslint' block that was causing errors
   typescript: {
     ignoreBuildErrors: true,
   },
