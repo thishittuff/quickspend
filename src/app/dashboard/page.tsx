@@ -5,10 +5,10 @@ import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, 
-  PieChart, Pie, Cell, Legend 
+  PieChart, Pie, Cell
 } from 'recharts';
-import { format, subMonths, startOfMonth, endOfMonth, isSameMonth, parseISO } from 'date-fns';
-import { ArrowLeft, Calendar, DollarSign, TrendingUp, CreditCard } from 'lucide-react';
+import { format, subMonths } from 'date-fns';
+import { ArrowLeft, Calendar, DollarSign, TrendingUp, WifiOff } from 'lucide-react'; // Added WifiOff import just in case, though not strictly used in this view usually
 
 // Dark Mode Colors for Charts
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1'];
@@ -51,8 +51,14 @@ export default function Dashboard() {
 
   // 2. Calculate Summary Cards
   const totalSpend = currentMonthExpenses.reduce((sum, item) => sum + item.amount, 0);
-  const avgDailySpend = currentMonthExpenses.length > 0 
-    ? (totalSpend / new Date().getDate()) // Simple avg based on day of month
+
+  // CHANGED LOGIC: Count unique days where money was actually spent
+  const uniqueDaysSpent = new Set(
+    currentMonthExpenses.map(item => item.created_at.split('T')[0]) // Extract just the YYYY-MM-DD part
+  ).size;
+
+  const avgDailySpend = uniqueDaysSpent > 0 
+    ? (totalSpend / uniqueDaysSpent) 
     : 0;
 
   // 3. Prepare Pie Chart Data (Category Wise)
@@ -126,9 +132,13 @@ export default function Dashboard() {
 
         <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 shadow-lg">
           <div className="flex items-center gap-2 text-slate-400 text-xs font-medium uppercase mb-2">
-            <TrendingUp size={14} /> Daily Avg
+            <TrendingUp size={14} /> Active Daily Avg
           </div>
+          {/* Displaying uniqueDaysSpent in tooltip or subtitle could be helpful context, but sticking to design */}
           <div className="text-2xl font-bold text-emerald-400">₹{Math.round(avgDailySpend).toLocaleString()}</div>
+          <div className="text-[10px] text-slate-500 mt-1">
+             (Based on {uniqueDaysSpent} spending days)
+          </div>
         </div>
       </div>
 
