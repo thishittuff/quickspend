@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Send, CheckCircle, WifiOff, RefreshCw } from 'lucide-react';
+import Link from 'next/link';
+import { BarChart3 } from 'lucide-react'; // Add this icon
 
 const CATEGORIES = [
   "Rent", "Internet", "Electricity", "Groceries", "Gym", 
@@ -95,15 +97,24 @@ export default function Home() {
       {/* Header */}
       <header className="bg-white p-4 shadow-sm sticky top-0 z-10 flex justify-between items-center">
         <h1 className="text-xl font-bold text-gray-800">QuickSpend</h1>
-        {offlineCount > 0 && (
-          <button 
-            onClick={syncQueue}
-            className="flex items-center gap-1 text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded-full animate-pulse"
-          >
-            <WifiOff size={14} />
-            {offlineCount} Pending (Tap to Sync)
-          </button>
-        )}
+        
+        <div className="flex items-center gap-2">
+          {/* Offline Badge */}
+          {offlineCount > 0 && (
+            <button 
+              onClick={syncQueue}
+              className="flex items-center gap-1 text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded-full animate-pulse"
+            >
+              <WifiOff size={14} />
+              {offlineCount}
+            </button>
+          )}
+
+          {/* Dashboard Link */}
+          <Link href="/dashboard" className="p-2 bg-blue-50 rounded-full text-blue-600 hover:bg-blue-100 transition">
+            <BarChart3 size={20} />
+          </Link>
+        </div>
       </header>
 
       {/* Form */}

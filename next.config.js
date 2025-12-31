@@ -11,12 +11,17 @@ const withPWA = require("@ducanh2912/next-pwa").default({
 });
 
 const nextConfig = {
-  // Disabling source maps is CRITICAL for Vercel memory limits
+  // CRITICAL: Disable source maps to prevent memory crashes
   productionBrowserSourceMaps: false,
   
-  // We removed the 'eslint' block that was causing errors
+  // Ignore typescript errors during build to prevent failing on small warnings
   typescript: {
     ignoreBuildErrors: true,
+  },
+  
+  // Explicitly tell Next.js we are using webpack (fixes the error message)
+  webpack: (config) => {
+    return config;
   },
 };
 
