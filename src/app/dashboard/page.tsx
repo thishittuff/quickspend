@@ -7,8 +7,8 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell
 } from 'recharts';
-import { format, subMonths, parseISO } from 'date-fns';
-import { ArrowLeft, Calendar, DollarSign, TrendingUp, Wallet } from 'lucide-react';
+import { format, subMonths, parseISO, addMonths } from 'date-fns';
+import { ArrowLeft, Calendar, DollarSign, TrendingUp, ChevronLeft, ChevronRight, Download } from 'lucide-react';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1'];
 
@@ -24,12 +24,14 @@ export default function Dashboard() {
   const router = useRouter();
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
-  const [currency, setCurrency] = useState('₹');
   
-  // NEW: Budget States
+  const [currentDate, setCurrentDate] = useState(new Date());
+  
+  const [currency, setCurrency] = useState('₹');
   const [totalIncome, setTotalIncome] = useState(0);
   const [balance, setBalance] = useState(0);
+
+  const selectedMonth = format(currentDate, 'yyyy-MM');
 
   useEffect(() => {
     const initData = async () => {
@@ -40,13 +42,11 @@ export default function Dashboard() {
       }
       setCurrency(user.user_metadata?.currency_symbol || '₹');
 
-      // 1. Fetch Expenses
       const { data: expData } = await supabase
         .from('expenses')
         .select('*')
         .order('created_at', { ascending: true });
       
-      // 2. Fetch Deposits (Income)
       const { data: depData } = await supabase.from('deposits').select('amount');
       
       const totalExp = expData?.reduce((sum, item) => sum + item.amount, 0) || 0;
@@ -60,6 +60,30 @@ export default function Dashboard() {
     initData();
   }, [router]);
 
+  // --- HANDLERS ---
+  const changeMonth = (offset: number) => {
+    setCurrentDate(prev => addMonths(prev, offset));
+  };
+
+  const handleExport = () => {
+    const headers = ['Date,Category,Note,Amount'];
+    const rows = currentMonthExpenses.map(exp => {
+      const date = format(parseISO(exp.created_at), 'yyyy-MM-dd');
+      const cleanNote = exp.note ? `"${exp.note.replace(/"/g, '""')}"` : ''; 
+      return `${date},${exp.category},${cleanNote},${exp.amount}`;
+    });
+    const csvContent = [headers, ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `Expenses_${selectedMonth}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   // --- DATA PROCESSING ---
   const recentExpenses = [...expenses].reverse().slice(0, 3);
   
@@ -70,11 +94,19 @@ export default function Dashboard() {
 
   const totalSpendMonth = currentMonthExpenses.reduce((sum, item) => sum + item.amount, 0);
 
-  // Note: Budget logic is usually "Lifetime" for a wallet app, but for visuals we use total stats
+  // FIXED: Calculate Unique Active Days
+  const uniqueDaysSpent = new Set(
+    currentMonthExpenses.map(item => item.created_at.split('T')[0]) 
+  ).size;
+
+  // FIXED: Divide by Unique Days (avoid division by zero)
+  const avgDailySpend = uniqueDaysSpent > 0 
+    ? (totalSpendMonth / uniqueDaysSpent) 
+    : 0;
+
   const totalLifetimeSpend = expenses.reduce((sum, item) => sum + item.amount, 0);
   const spendingPercentage = totalIncome > 0 ? (totalLifetimeSpend / totalIncome) * 100 : 0;
 
-  // Chart Logic
   const categoryStats: Record<string, number> = {};
   currentMonthExpenses.forEach(exp => {
     categoryStats[exp.category] = (categoryStats[exp.category] || 0) + exp.amount;
@@ -117,7 +149,7 @@ export default function Dashboard() {
 
       <div className="flex flex-col gap-6">
 
-        {/* NEW: BUDGET OVERVIEW CARD */}
+        {/* BUDGET OVERVIEW */}
         <div className="bg-slate-900 p-5 rounded-3xl border border-slate-800 shadow-lg">
           <div className="flex justify-between items-end mb-2">
             <div>
@@ -129,8 +161,6 @@ export default function Dashboard() {
               <div className="text-sm font-bold text-emerald-400">+{currency}{totalIncome.toLocaleString()}</div>
             </div>
           </div>
-
-          {/* Progress Bar */}
           <div className="mt-4">
             <div className="flex justify-between text-xs text-slate-400 mb-1">
               <span>Spent: {currency}{totalLifetimeSpend.toLocaleString()}</span>
@@ -147,17 +177,29 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* MONTH FILTER */}
-        <div className="flex justify-center">
+        {/* MONTH NAVIGATION & EXPORT */}
+        <div className="flex justify-center items-center gap-2">
+          <button onClick={() => changeMonth(-1)} className="p-2 bg-slate-800 rounded-xl hover:bg-slate-700 text-slate-300">
+            <ChevronLeft size={20} />
+          </button>
+          
           <div className="relative">
             <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
             <input 
               type="month" 
               value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="bg-slate-900 border border-slate-700 text-white pl-10 pr-4 py-2 rounded-xl focus:outline-none focus:border-blue-500 appearance-none"
+              onChange={(e) => setCurrentDate(new Date(e.target.value))}
+              className="bg-slate-900 border border-slate-700 text-white pl-10 pr-4 py-2 rounded-xl focus:outline-none focus:border-blue-500 appearance-none font-bold text-center w-36"
             />
           </div>
+
+          <button onClick={() => changeMonth(1)} className="p-2 bg-slate-800 rounded-xl hover:bg-slate-700 text-slate-300">
+            <ChevronRight size={20} />
+          </button>
+          
+          <button onClick={handleExport} className="p-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl hover:bg-emerald-500/20 ml-2">
+            <Download size={20} />
+          </button>
         </div>
 
         {/* SUMMARY CARDS */}
@@ -174,13 +216,16 @@ export default function Dashboard() {
               <TrendingUp size={14} /> Avg Daily
             </div>
             <div className="text-2xl font-bold text-emerald-400">
-               {/* Simple average calculation for display */}
-              {currency}{Math.round(totalSpendMonth / (new Date().getDate())).toLocaleString()}
+              {currency}{Math.round(avgDailySpend).toLocaleString()}
+            </div>
+            {/* Added detail back so you know it's working */}
+            <div className="text-[10px] text-slate-500 mt-1">
+             (Based on {uniqueDaysSpent} spending days)
             </div>
           </div>
         </div>
         
-        {/* CHARTS (Pie) */}
+        {/* CHARTS */}
         <div className="bg-slate-900 p-5 rounded-3xl border border-slate-800 shadow-lg">
           <h2 className="text-lg font-semibold mb-4 text-slate-200">Where money went</h2>
           <div className="h-64 w-full">
